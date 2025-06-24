@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Uploaded Animals</title>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --primary-color: #3498db;
+        --secondary-color: #2ecc71;
+        --text-color: #2c3e50;
+        --bg-color: #f4f6f7;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .section-title {
+        text-align: center;
+        color: var(--primary-color);
+        margin-bottom: 30px;
+        font-size: 2.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+      }
+      .section-title i {
+        color: var(--secondary-color);
+      }
+      .animal-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 25px;
+      }
+      .animal-card {
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        border: 1px solid #e9ecef;
+      }
+      .animal-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 15px 25px rgba(0, 0, 0, 0.15);
+      }
+      .animal-image {
+        width: 100%;
+        height: 300px;
+        object-fit: cover;
+        transition: transform 0.3s ease;
+      }
+      .animal-card:hover .animal-image {
+        transform: scale(1.1);
+      }
+      .animal-details {
+        padding: 20px;
+        background: white;
+      }
+      .animal-details p {
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .animal-details p i {
+        color: var(--primary-color);
+        margin-right: 10px;
+      }
+      .tag {
+        background-color: var(--primary-color);
+        color: white;
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        margin-left: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="section-title">
+        <i class="fas fa-paw"></i>
+        REAL-TIME PORTAL
+        <i class="fas fa-paw"></i>
+      </h1>
+      <div class="animal-grid">
+        {% for animal in animals %}
+        <div class="animal-card">
+          <img src="{{ animal.image.url }}?{{ animal.image.url|date:"YmdHis" }}" alt="Animal Image" class="animal-image" />
+
+          <div class="animal-details">
+            <p>
+              <i class="fas fa-info-circle"></i>Details: {{ animal.details }}
+            </p>
+            <p>
+                <i class="fas fa-tags"></i>Tags:
+                {% for tag in animal.tags_list %}
+                <span class="tag">{{ tag }}</span>
+                {% endfor %}
+                <b>Animal</b><b>Urgent</b>
+                <!-- <b>Not In the Database</b> -->
+              </p>
+              
+            <p>
+              <i class="fas fa-clock"></i>Uploaded At: {{ animal.uploaded_at }}
+              <p>
+                <i class="fas fa-map-marker-alt"></i>Location: Gurgaon
+              </p>
+              <p>
+                <i class="fas fa-phone-alt"></i>Phone: 1234567890
+              </p>
+              <p>
+                <i class = "fas fa-info-circle"></i> Severe :
+                <!-- Undefined -->
+                            <br>    Low </p><br>
+                   <!-- Moderate -->
+                    <!-- high -->
+              
+              </p>
+            </p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </body>
+</html>
