@@ -3,7 +3,6 @@ import {
   View,
   Text,
   Image,
-  TextInput,
   StyleSheet,
   TouchableOpacity,
   Alert,
@@ -11,8 +10,11 @@ import {
   ScrollView,
   Dimensions,
   StatusBar,
+  PermissionsAndroid,
+  Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from "react-native-vector-icons/MaterialIcons";
 
@@ -20,11 +22,37 @@ const { width, height } = Dimensions.get('window');
 
 const App = () => {
   const [selectedImage, setSelectedImage] = useState(null);
-  const [animalDetails, setAnimalDetails] = useState("");
-  const [inputFocused, setInputFocused] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [animateInput] = useState(new Animated.Value(1));
+  const [analysisResult, setAnalysisResult] = useState(null);
   const [scaleAnim] = useState(new Animated.Value(1));
+
+  // Get device location
+  const getCurrentLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is required to tag the image location.');
+        return null;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      return {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+    } catch (error) {
+      console.error('Error getting location:', error);
+      Alert.alert('Location Error', 'Unable to get current location. Using default coordinates.');
+      // Return default coordinates if location fails
+      return {
+        latitude: 12.9716,
+        longitude: 77.5946,
+      };
+    }
+  };
 
   const openGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -42,6 +70,7 @@ const App = () => {
 
     if (!result.canceled && result.assets && result.assets[0].uri) {
       setSelectedImage(result.assets[0].uri);
+      setAnalysisResult(null); // Clear previous analysis
       animateImageSelection();
     }
   };
@@ -61,6 +90,7 @@ const App = () => {
 
     if (!result.canceled && result.assets && result.assets[0].uri) {
       setSelectedImage(result.assets[0].uri);
+      setAnalysisResult(null); // Clear previous analysis
       animateImageSelection();
     }
   };
@@ -81,45 +111,37 @@ const App = () => {
     ]).start();
   };
 
-  const handleFocus = () => {
-    setInputFocused(true);
-    Animated.spring(animateInput, {
-      toValue: 1.02,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleBlur = () => {
-    setInputFocused(false);
-    Animated.spring(animateInput, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const uploadImage = async () => {
+  const analyzeImage = async () => {
     if (!selectedImage) {
       Alert.alert("Missing Image", "Please select an image first!");
       return;
     }
 
-    if (!animalDetails.trim()) {
-      Alert.alert("Missing Details", "Please enter animal details!");
-      return;
-    }
-
     setUploading(true);
-
-    const formData = new FormData();
-    formData.append("image", {
-      uri: selectedImage,
-      type: "image/jpg",
-      name: "uploaded_image.jpg",
-    });
-    formData.append("details", animalDetails);
+    setAnalysisResult(null);
 
     try {
-      const response = await fetch("https://5ef0-2405-204-3485-a68d-28a1-36c6-989f-7798.ngrok-free.app/animal/upload", {
+      // Get current location
+      const location = await getCurrentLocation();
+      if (!location) {
+        setUploading(false);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("image", {
+        uri: selectedImage,
+        type: "image/jpeg",
+        name: "animal_image.jpg",
+      });
+      
+      // Send location as JSON string
+      formData.append("location", JSON.stringify({
+        latitude: location.latitude,
+        longitude: location.longitude,
+      }));
+
+      const response = await fetch("http://127.0.0.1:8000/animal/test-gemini/", {
         method: "POST",
         headers: {
           "Content-Type": "multipart/form-data",
@@ -128,23 +150,41 @@ const App = () => {
       });
 
       const result = await response.json();
+      
       if (response.ok) {
+        setAnalysisResult(result);
         Alert.alert(
-          "Success! 🎉", 
-          `Image uploaded successfully!\nTags: ${result.tags}`,
-          [{ text: "OK", onPress: () => {
-            setSelectedImage(null);
-            setAnimalDetails("");
-          }}]
+          "Analysis Complete! 🎉", 
+          `Animal identified: ${result.analysis_result?.animal_type || 'Unknown'}\nInjury: ${result.analysis_result?.injury || 'None detected'}`,
+          [{ text: "View Details", onPress: () => {} }]
         );
       } else {
-        Alert.alert("Upload Failed", "Please try again later.");
+        Alert.alert("Analysis Failed", result.error || "Please try again later.");
       }
     } catch (error) {
+      console.error('Upload error:', error);
       Alert.alert("Network Error", "Please check your connection and try again.");
     } finally {
       setUploading(false);
     }
+  };
+
+  const getSeverityColor = (severity) => {
+    switch (severity?.toLowerCase()) {
+      case 'high':
+        return '#ef4444';
+      case 'medium':
+        return '#f59e0b';
+      case 'low':
+        return '#10b981';
+      default:
+        return '#6b7280';
+    }
+  };
+
+  const resetAnalysis = () => {
+    setSelectedImage(null);
+    setAnalysisResult(null);
   };
 
   return (
@@ -156,9 +196,9 @@ const App = () => {
         colors={['#059669', '#10b981', '#34d399']}
         style={styles.header}
       >
-        <Text style={styles.headerTitle}>🐾 Animal Care</Text>
+        <Text style={styles.headerTitle}>🤖 AI Animal Care</Text>
         <Text style={styles.headerSubtitle}>
-          Upload photos and help us identify animals in need
+          AI-powered animal injury detection and analysis
         </Text>
       </LinearGradient>
 
@@ -206,76 +246,115 @@ const App = () => {
             <Image source={{ uri: selectedImage }} style={styles.previewImage} />
             <TouchableOpacity 
               style={styles.removeImageButton}
-              onPress={() => setSelectedImage(null)}
+              onPress={resetAnalysis}
             >
               <Icon name="close" size={20} color="#ef4444" />
             </TouchableOpacity>
           </Animated.View>
         )}
 
-        {/* Animal Details Input */}
-        <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>Animal Details</Text>
-          <Animated.View
-            style={[
-              styles.inputContainer,
-              { transform: [{ scale: animateInput }] },
-              inputFocused && styles.inputContainerFocused
-            ]}
-          >
-            <TextInput
-              style={styles.textInput}
-              placeholder="Describe the animal's condition, location, behavior..."
-              value={animalDetails}
-              onChangeText={setAnimalDetails}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-              placeholderTextColor="#9ca3af"
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-            {animalDetails.length > 0 && (
-              <TouchableOpacity
-                style={styles.clearTextButton}
-                onPress={() => setAnimalDetails("")}
-              >
-                <Icon name="clear" size={20} color="#6b7280" />
-              </TouchableOpacity>
-            )}
-          </Animated.View>
-          <Text style={styles.characterCount}>
-            {animalDetails.length}/500 characters
-          </Text>
-        </View>
+        {/* Analysis Results */}
+        {analysisResult && (
+          <View style={styles.analysisContainer}>
+            <Text style={styles.analysisTitle}>🔍 AI Analysis Results</Text>
+            
+            <View style={styles.resultCard}>
+              <View style={styles.resultRow}>
+                <Icon name="pets" size={20} color="#059669" />
+                <Text style={styles.resultLabel}>Animal Type:</Text>
+                <Text style={styles.resultValue}>
+                  {analysisResult.analysis_result?.animal_type || 'Unknown'}
+                </Text>
+              </View>
 
-        {/* Upload Button */}
+              {analysisResult.analysis_result?.breed_guess && (
+                <View style={styles.resultRow}>
+                  <Icon name="category" size={20} color="#059669" />
+                  <Text style={styles.resultLabel}>Breed:</Text>
+                  <Text style={styles.resultValue}>
+                    {analysisResult.analysis_result.breed_guess}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.resultRow}>
+                <Icon name="healing" size={20} color="#f59e0b" />
+                <Text style={styles.resultLabel}>Injury:</Text>
+                <Text style={styles.resultValue}>
+                  {analysisResult.analysis_result?.injury || 'None detected'}
+                </Text>
+              </View>
+
+              {analysisResult.analysis_result?.severity && (
+                <View style={styles.resultRow}>
+                  <Icon 
+                    name="priority-high" 
+                    size={20} 
+                    color={getSeverityColor(analysisResult.analysis_result.severity)} 
+                  />
+                  <Text style={styles.resultLabel}>Severity:</Text>
+                  <Text style={[
+                    styles.resultValue, 
+                    { color: getSeverityColor(analysisResult.analysis_result.severity) }
+                  ]}>
+                    {analysisResult.analysis_result.severity}
+                  </Text>
+                </View>
+              )}
+
+              {analysisResult.analysis_result?.suggestions && (
+                <View style={styles.suggestionsContainer}>
+                  <View style={styles.resultRow}>
+                    <Icon name="lightbulb-outline" size={20} color="#3b82f6" />
+                    <Text style={styles.resultLabel}>Suggestions:</Text>
+                  </View>
+                  <Text style={styles.suggestionsText}>
+                    {analysisResult.analysis_result.suggestions}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.locationCard}>
+              <Icon name="location-on" size={20} color="#ef4444" />
+              <View style={styles.locationContent}>
+                <Text style={styles.locationTitle}>Location Tagged</Text>
+                <Text style={styles.locationText}>
+                  Lat: {analysisResult.location?.latitude?.toFixed(6)}, 
+                  Lng: {analysisResult.location?.longitude?.toFixed(6)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Analyze Button */}
         <TouchableOpacity
           style={[
-            styles.uploadButton,
-            (!selectedImage || !animalDetails.trim() || uploading) && styles.uploadButtonDisabled
+            styles.analyzeButton,
+            (!selectedImage || uploading) && styles.analyzeButtonDisabled
           ]}
-          onPress={uploadImage}
-          disabled={!selectedImage || !animalDetails.trim() || uploading}
+          onPress={analyzeImage}
+          disabled={!selectedImage || uploading}
           activeOpacity={0.8}
         >
           <LinearGradient
             colors={
-              (!selectedImage || !animalDetails.trim() || uploading)
+              (!selectedImage || uploading)
                 ? ['#d1d5db', '#9ca3af']
-                : ['#059669', '#10b981']
+                : ['#7c3aed', '#5b21b6']
             }
-            style={styles.uploadButtonGradient}
+            style={styles.analyzeButtonGradient}
           >
             {uploading ? (
               <>
-                <Icon name="hourglass-empty" size={24} color="#fff" />
-                <Text style={styles.uploadButtonText}>Uploading...</Text>
+                <Icon name="autorenew" size={24} color="#fff" />
+                <Text style={styles.analyzeButtonText}>Analyzing...</Text>
               </>
             ) : (
               <>
-                <Icon name="cloud-upload" size={24} color="#fff" />
-                <Text style={styles.uploadButtonText}>Upload & Analyze</Text>
+                <Icon name="psychology" size={24} color="#fff" />
+                <Text style={styles.analyzeButtonText}>Analyze with AI</Text>
               </>
             )}
           </LinearGradient>
@@ -287,7 +366,8 @@ const App = () => {
           <View style={styles.infoContent}>
             <Text style={styles.infoTitle}>How it works</Text>
             <Text style={styles.infoText}>
-              Our AI analyzes your photo to identify the animal and suggest appropriate care measures.
+              Our AI powered by Google Gemini analyzes animal images to detect injuries, 
+              identify species, and provide care recommendations with location tagging.
             </Text>
           </View>
         </View>
@@ -389,54 +469,80 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
-  inputSection: {
+  analysisContainer: {
     marginBottom: 24,
   },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
+  analysisTitle: {
+    fontSize: 20,
+    fontWeight: '700',
     color: '#374151',
-    marginBottom: 12,
+    marginBottom: 16,
+    textAlign: 'center',
   },
-  inputContainer: {
+  resultCard: {
     backgroundColor: '#fff',
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-    position: 'relative',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-  },
-  inputContainerFocused: {
-    borderColor: '#059669',
+    padding: 20,
+    marginBottom: 16,
     elevation: 4,
-    shadowColor: '#059669',
-    shadowOpacity: 0.2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
-  textInput: {
-    padding: 16,
-    fontSize: 16,
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  resultLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginLeft: 8,
+    flex: 1,
+  },
+  resultValue: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#374151',
-    minHeight: 100,
-    fontWeight: '500',
+    flex: 2,
   },
-  clearTextButton: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    padding: 4,
-  },
-  characterCount: {
-    fontSize: 12,
-    color: '#9ca3af',
-    textAlign: 'right',
+  suggestionsContainer: {
     marginTop: 8,
-    fontWeight: '500',
   },
-  uploadButton: {
+  suggestionsText: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
+    marginLeft: 28,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  locationCard: {
+    flexDirection: 'row',
+    backgroundColor: '#fef2f2',
+    padding: 16,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ef4444',
+    marginBottom: 16,
+  },
+  locationContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  locationTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#dc2626',
+    marginBottom: 2,
+  },
+  locationText: {
+    fontSize: 12,
+    color: '#7f1d1d',
+  },
+  analyzeButton: {
     borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 24,
@@ -446,18 +552,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 12,
   },
-  uploadButtonDisabled: {
+  analyzeButtonDisabled: {
     elevation: 2,
     shadowOpacity: 0.1,
   },
-  uploadButtonGradient: {
+  analyzeButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 18,
     paddingHorizontal: 24,
   },
-  uploadButtonText: {
+  analyzeButtonText: {
     marginLeft: 12,
     fontSize: 18,
     fontWeight: '700',
