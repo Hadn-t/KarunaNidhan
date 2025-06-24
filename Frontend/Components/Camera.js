@@ -141,11 +141,8 @@ const App = () => {
         longitude: location.longitude,
       }));
 
-      const response = await fetch("http://127.0.0.1:8000/animal/test-gemini/", {
+      const response = await fetch("http://192.168.1.10:8000/animal/test-gemini/", {
         method: "POST",
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
         body: formData,
       });
 
@@ -366,7 +363,7 @@ const App = () => {
           <View style={styles.infoContent}>
             <Text style={styles.infoTitle}>How it works</Text>
             <Text style={styles.infoText}>
-              Our AI powered by Google Gemini analyzes animal images to detect injuries, 
+              Our AI Animal images to detect injuries, 
               identify species, and provide care recommendations with location tagging.
             </Text>
           </View>
