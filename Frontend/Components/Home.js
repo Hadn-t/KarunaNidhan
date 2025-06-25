@@ -51,14 +51,16 @@ const Home = () => {
     : filteredNGOs.slice(0, numOfCards);
 
   return (
-    <SafeAreaView style={styles.mainContainer}>
+    <View style={styles.mainContainer}>
       <StatusBar barStyle={"default"} hidden={false} />
+      <View>
       <Text style={styles.User}>Hello {userData.firstName}</Text>
       <Text style={styles.Head}>Choose Your NGOs</Text>
       <Image
         source={{ uri: userData.userPhoto }}
         style={styles.userPhoto}
       />
+      </View>
       <TextInput
         placeholder="Search"
         style={styles.search}
@@ -112,7 +114,7 @@ const Home = () => {
           </Text>
         }
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
