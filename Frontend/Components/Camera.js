@@ -158,6 +158,8 @@ const App = () => {
       });
 
       const result = await response.json();
+      console.log('API Response:', result); // Debug log
+      
       if (response.ok && result.report) {
         // Parse the nested analysis data
         const parsedAnalysis = parseAnalysisData(result.report.report_data);
@@ -209,6 +211,22 @@ const App = () => {
   const resetAnalysis = () => {
     setSelectedImage(null);
     setAnalysisResult(null);
+  };
+
+  const renderProcedureSteps = (procedure) => {
+    if (!procedure) return null;
+    
+    // Split procedure by "Step" and filter out empty strings
+    const steps = procedure.split(/Step \d+:/).filter(step => step.trim());
+    
+    return steps.map((step, index) => (
+      <View key={index} style={styles.procedureStep}>
+        <View style={styles.stepNumber}>
+          <Text style={styles.stepNumberText}>{index + 1}</Text>
+        </View>
+        <Text style={styles.stepText}>{step.trim()}</Text>
+      </View>
+    ));
   };
 
   return (
@@ -292,7 +310,10 @@ const App = () => {
               </View>
             )}
             
+            {/* Basic Analysis Results */}
             <View style={styles.resultCard}>
+              <Text style={styles.cardTitle}>📊 Analysis Overview</Text>
+              
               <View style={styles.resultRow}>
                 <Icon name="pets" size={20} color="#059669" />
                 <Text style={styles.resultLabel}>Animal Type:</Text>
@@ -329,42 +350,81 @@ const App = () => {
                   <Text style={styles.resultLabel}>Severity:</Text>
                   <Text style={[
                     styles.resultValue, 
-                    { color: getSeverityColor(analysisResult.analysis_result.severity) }
+                    styles.severityBadge,
+                    { 
+                      color: getSeverityColor(analysisResult.analysis_result.severity),
+                      backgroundColor: getSeverityColor(analysisResult.analysis_result.severity) + '20'
+                    }
                   ]}>
                     {analysisResult.analysis_result.severity}
                   </Text>
                 </View>
               )}
 
-              {analysisResult.analysis_result.environment_factors && (
-                <View style={styles.suggestionsContainer}>
-                  <View style={styles.resultRow}>
-                    <Icon name="eco" size={20} color="#059669" />
-                    <Text style={styles.resultLabel}>Environment:</Text>
-                  </View>
-                  <Text style={styles.suggestionsText}>
-                    {analysisResult.analysis_result.environment_factors}
-                  </Text>
-                </View>
-              )}
-
-              {analysisResult.analysis_result.suggestions && (
-                <View style={styles.suggestionsContainer}>
-                  <View style={styles.resultRow}>
-                    <Icon name="lightbulb-outline" size={20} color="#3b82f6" />
-                    <Text style={styles.resultLabel}>Suggestions:</Text>
-                  </View>
-                  <Text style={styles.suggestionsText}>
-                    {analysisResult.analysis_result.suggestions}
+              {analysisResult.analysis_result.person_required && (
+                <View style={styles.resultRow}>
+                  <Icon name="person" size={20} color="#8b5cf6" />
+                  <Text style={styles.resultLabel}>Personnel Required:</Text>
+                  <Text style={styles.resultValue}>
+                    {analysisResult.analysis_result.person_required} person(s)
                   </Text>
                 </View>
               )}
             </View>
 
+            {/* Environment Factors */}
+            {analysisResult.analysis_result.environment_factors && (
+              <View style={styles.resultCard}>
+                <Text style={styles.cardTitle}>🌍 Environment Analysis</Text>
+                <Text style={styles.environmentText}>
+                  {analysisResult.analysis_result.environment_factors}
+                </Text>
+              </View>
+            )}
+
+            {/* Equipment Needed */}
+            {analysisResult.analysis_result.equipments && analysisResult.analysis_result.equipments.length > 0 && (
+              <View style={styles.resultCard}>
+                <Text style={styles.cardTitle}>🛠️ Equipment Required</Text>
+                <View style={styles.equipmentContainer}>
+                  {analysisResult.analysis_result.equipments.map((equipment, index) => (
+                    <View key={index} style={styles.equipmentItem}>
+                      <Icon name="check-circle" size={16} color="#10b981" />
+                      <Text style={styles.equipmentText}>{equipment}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Procedure Steps */}
+            {analysisResult.analysis_result.procedure && (
+              <View style={styles.resultCard}>
+                <Text style={styles.cardTitle}>📋 Procedure Steps</Text>
+                <View style={styles.procedureContainer}>
+                  {renderProcedureSteps(analysisResult.analysis_result.procedure)}
+                </View>
+              </View>
+            )}
+
+            {/* Suggestions */}
+            {analysisResult.analysis_result.suggestions && (
+              <View style={styles.resultCard}>
+                <Text style={styles.cardTitle}>💡 Recommendations</Text>
+                <View style={styles.suggestionsContainer}>
+                  <Icon name="lightbulb-outline" size={20} color="#3b82f6" />
+                  <Text style={styles.suggestionsText}>
+                    {analysisResult.analysis_result.suggestions}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Location Card */}
             <View style={styles.locationCard}>
               <Icon name="location-on" size={20} color="#ef4444" />
               <View style={styles.locationContent}>
-                <Text style={styles.locationTitle}>Location Tagged</Text>
+                <Text style={styles.locationTitle}>📍 Location Tagged</Text>
                 <Text style={styles.locationText}>
                   Lat: {analysisResult.location?.latitude?.toFixed(6)}, 
                   Lng: {analysisResult.location?.longitude?.toFixed(6)}
@@ -412,8 +472,8 @@ const App = () => {
           <View style={styles.infoContent}>
             <Text style={styles.infoTitle}>How it works</Text>
             <Text style={styles.infoText}>
-              Our AI analyzes animal images to detect injuries, 
-              identify species, and provide care recommendations with location tagging.
+              Our AI analyzes animal images to detect injuries, identify species, 
+              and provide detailed care recommendations with equipment lists and step-by-step procedures.
             </Text>
           </View>
         </View>
@@ -519,10 +579,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   analysisTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#374151',
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: 'center',
   },
   reportIdCard: {
@@ -531,7 +591,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f3f4f6',
     padding: 12,
     borderRadius: 8,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   reportIdText: {
     fontSize: 12,
@@ -549,6 +609,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 16,
+    textAlign: 'center',
   },
   resultRow: {
     flexDirection: 'row',
@@ -568,15 +635,80 @@ const styles = StyleSheet.create({
     color: '#374151',
     flex: 2,
   },
-  suggestionsContainer: {
-    marginTop: 8,
+  severityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
   },
-  suggestionsText: {
+  environmentText: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 22,
+    fontStyle: 'italic',
+  },
+  equipmentContainer: {
+    gap: 8,
+  },
+  equipmentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#10b981',
+  },
+  equipmentText: {
+    fontSize: 14,
+    color: '#374151',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  procedureContainer: {
+    gap: 12,
+  },
+  procedureStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fef7ff',
+    padding: 16,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#8b5cf6',
+  },
+  stepNumber: {
+    backgroundColor: '#8b5cf6',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  stepNumberText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  stepText: {
+    flex: 1,
     fontSize: 14,
     color: '#374151',
     lineHeight: 20,
-    marginLeft: 28,
-    marginTop: 4,
+  },
+  suggestionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  suggestionsText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 22,
+    marginLeft: 12,
     fontStyle: 'italic',
   },
   locationCard: {
