@@ -1,4 +1,4 @@
-pythonannotated-types==0.7.0
+annotated-types==0.7.0
 asgiref==3.8.1
 beautifulsoup4==4.13.4
 cachetools==5.5.2

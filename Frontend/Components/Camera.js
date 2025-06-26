@@ -111,6 +111,17 @@ const App = () => {
     ]).start();
   };
 
+  const parseAnalysisData = (reportData) => {
+    try {
+      // Remove the ```json wrapper if present
+      const jsonString = reportData.replace(/```json\n|\n```/g, '');
+      return JSON.parse(jsonString);
+    } catch (error) {
+      console.error('Error parsing analysis data:', error);
+      return null;
+    }
+  };
+
   const analyzeImage = async () => {
     if (!selectedImage) {
       Alert.alert("Missing Image", "Please select an image first!");
@@ -141,22 +152,38 @@ const App = () => {
         longitude: location.longitude,
       }));
 
-      const response = await fetch("http://192.168.1.10:8000/animal/test-gemini/", {
+      const response = await fetch("http://192.168.1.7:8000/animal/test-gemini/", {
         method: "POST",
         body: formData,
       });
 
       const result = await response.json();
-      
-      if (response.ok) {
-        setAnalysisResult(result);
-        Alert.alert(
-          "Analysis Complete! 🎉", 
-          `Animal identified: ${result.analysis_result?.animal_type || 'Unknown'}\nInjury: ${result.analysis_result?.injury || 'None detected'}`,
-          [{ text: "View Details", onPress: () => {} }]
-        );
+      if (response.ok && result.report) {
+        // Parse the nested analysis data
+        const parsedAnalysis = parseAnalysisData(result.report.report_data);
+        
+        if (parsedAnalysis) {
+          const formattedResult = {
+            analysis_result: parsedAnalysis,
+            location: {
+              latitude: result.report.latitude,
+              longitude: result.report.longitude,
+            },
+            report_id: result.report.report_id,
+            message: result.message
+          };
+          
+          setAnalysisResult(formattedResult);
+          Alert.alert(
+            "Analysis Complete! 🎉", 
+            `Animal identified: ${parsedAnalysis.animal_type || 'Unknown'}\nInjury: ${parsedAnalysis.injury || 'None detected'}`,
+            [{ text: "View Details", onPress: () => {} }]
+          );
+        } else {
+          Alert.alert("Parsing Error", "Unable to parse analysis results.");
+        }
       } else {
-        Alert.alert("Analysis Failed", result.error || "Please try again later.");
+        Alert.alert("Analysis Failed", result.error || result.message || "Please try again later.");
       }
     } catch (error) {
       console.error('Upload error:', error);
@@ -251,20 +278,30 @@ const App = () => {
         )}
 
         {/* Analysis Results */}
-        {analysisResult && (
+        {analysisResult && analysisResult.analysis_result && (
           <View style={styles.analysisContainer}>
             <Text style={styles.analysisTitle}>🔍 AI Analysis Results</Text>
+            
+            {/* Report ID */}
+            {analysisResult.report_id && (
+              <View style={styles.reportIdCard}>
+                <Icon name="description" size={16} color="#6b7280" />
+                <Text style={styles.reportIdText}>
+                  Report ID: {analysisResult.report_id.substring(0, 8)}...
+                </Text>
+              </View>
+            )}
             
             <View style={styles.resultCard}>
               <View style={styles.resultRow}>
                 <Icon name="pets" size={20} color="#059669" />
                 <Text style={styles.resultLabel}>Animal Type:</Text>
                 <Text style={styles.resultValue}>
-                  {analysisResult.analysis_result?.animal_type || 'Unknown'}
+                  {analysisResult.analysis_result.animal_type || 'Unknown'}
                 </Text>
               </View>
 
-              {analysisResult.analysis_result?.breed_guess && (
+              {analysisResult.analysis_result.breed_guess && analysisResult.analysis_result.breed_guess !== 'N/A' && (
                 <View style={styles.resultRow}>
                   <Icon name="category" size={20} color="#059669" />
                   <Text style={styles.resultLabel}>Breed:</Text>
@@ -278,11 +315,11 @@ const App = () => {
                 <Icon name="healing" size={20} color="#f59e0b" />
                 <Text style={styles.resultLabel}>Injury:</Text>
                 <Text style={styles.resultValue}>
-                  {analysisResult.analysis_result?.injury || 'None detected'}
+                  {analysisResult.analysis_result.injury || 'None detected'}
                 </Text>
               </View>
 
-              {analysisResult.analysis_result?.severity && (
+              {analysisResult.analysis_result.severity && (
                 <View style={styles.resultRow}>
                   <Icon 
                     name="priority-high" 
@@ -299,7 +336,19 @@ const App = () => {
                 </View>
               )}
 
-              {analysisResult.analysis_result?.suggestions && (
+              {analysisResult.analysis_result.environment_factors && (
+                <View style={styles.suggestionsContainer}>
+                  <View style={styles.resultRow}>
+                    <Icon name="eco" size={20} color="#059669" />
+                    <Text style={styles.resultLabel}>Environment:</Text>
+                  </View>
+                  <Text style={styles.suggestionsText}>
+                    {analysisResult.analysis_result.environment_factors}
+                  </Text>
+                </View>
+              )}
+
+              {analysisResult.analysis_result.suggestions && (
                 <View style={styles.suggestionsContainer}>
                   <View style={styles.resultRow}>
                     <Icon name="lightbulb-outline" size={20} color="#3b82f6" />
@@ -363,7 +412,7 @@ const App = () => {
           <View style={styles.infoContent}>
             <Text style={styles.infoTitle}>How it works</Text>
             <Text style={styles.infoText}>
-              Our AI Animal images to detect injuries, 
+              Our AI analyzes animal images to detect injuries, 
               identify species, and provide care recommendations with location tagging.
             </Text>
           </View>
@@ -475,6 +524,20 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginBottom: 16,
     textAlign: 'center',
+  },
+  reportIdCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  reportIdText: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginLeft: 8,
+    fontFamily: 'monospace',
   },
   resultCard: {
     backgroundColor: '#fff',
